@@ -1,0 +1,14 @@
+# Artefatos de build do Cabal
+dist-newstyle/
+
+# Artefatos de compilação do GHC
+*.hi
+*.o
+*.dyn_hi
+*.dyn_o
+
+# Arquivos temporários
+*~
+*.swp
+*.swo
+
