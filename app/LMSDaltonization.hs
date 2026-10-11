@@ -1,13 +1,13 @@
 module LMSDaltonization where
 
-import Data.Word (Word8)
+import Data.Matrix (Matrix, fromList, mapPos)
 
-data SRGB = SRGB {
-    sr :: Word8,
-    sg :: Word8,
-    sb :: Word8
-} deriving (Show)
+type SRGB = Matrix Double
+type RGBl = Matrix Double
 
-normalizarFloat :: Word8 -> Double
-normalizarFloat x = fromIntegral x / 255
+sRGB :: Double -> Double -> Double -> SRGB
+sRGB r g b = fromList 3 1 [r, g, b]
+
+sRGB_RGBl :: SRGB -> RGBl
+sRGB_RGBl = mapPos (\_ x -> x / 255)
 
