@@ -2,11 +2,15 @@ module Main (main) where
 
 import LMSDaltonization
 
-x :: SRGB
-x = sRGB 128 64 150
+s :: SRGB
+s = _sRGB 128 64 5
+
+l :: RGBl
+l = _RGBl s
 
 main :: IO ()
 main = do
     putStrLn "\nUsando LMS Daltonization...\n\n"
-    print(sRGB_RGBl x)
+    print s 
+    print l 
 
