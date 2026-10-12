@@ -9,7 +9,11 @@ l :: RGBl
 l = _RGBl s
 
 lms :: LMS
-lms = transf_RGBl_LMS l
+lms = _LMS l
+
+-- LMSsim protan
+lms_s :: LMS
+lms_s = _LMSsim l 1
 
 main :: IO ()
 main = do
@@ -23,4 +27,7 @@ main = do
 
     putStrLn "\n===Conversão para LMS==="
     print lms
+
+    putStrLn "\n===Cálculo LMSsim (Protan)==="
+    print lms_s
 
