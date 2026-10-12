@@ -1,9 +1,10 @@
 module LMSDaltonization where
 
-import Data.Matrix (Matrix, fromList, mapPos)
+import Data.Matrix (Matrix, fromList, fromLists, mapPos)
 
 type SRGB = Matrix Double
 type RGBl = Matrix Double
+type LMS = Matrix Double
 
 -- Construtor do sRGB (normalizado)
 _sRGB :: Double -> Double -> Double -> SRGB
@@ -26,4 +27,17 @@ cLinear c
 -- Aplica a FTsRGBI para a matriz inteira
 transf_sRGB_inv :: SRGB -> RGBl
 transf_sRGB_inv = mapPos (\_ c -> cLinear c)
+
+
+
+-- Matriz Hunt-Pointer-Estevez
+mHPE :: Matrix Double
+mHPE = fromLists  [ [17.8824, 43.5161, 4.11935],
+                    [3.45565, 27.1554, 3.86714],
+                    [0.02299566, 0.184309, 1.46709]]
+
+-- Função de Transformação do RGBlinear para o espaço LMS (CIE 1931 XYZ)
+-- usando mLMS = mHPE
+transf_RGBl_LMS :: RGBl -> LMS
+transf_RGBl_LMS rgbl = mHPE * rgbl
 
