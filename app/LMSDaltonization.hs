@@ -43,7 +43,7 @@ transf_sRGB_inv = mapPos (\_ c -> cLinear c)
 mHPE :: Matrix Double
 mHPE = fromLists  [ [17.8824, 43.5161, 4.11935],
                     [3.45565, 27.1554, 3.86714],
-                    [0.02299566, 0.184309, 1.46709]]
+                    [0.0299566, 0.184309, 1.46709]]
 
 -- Função de Transformação do RGBlinear para o espaço LMS (CIE 1931 XYZ)
 -- usando mLMS = mHPE

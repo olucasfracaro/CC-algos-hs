@@ -16,7 +16,7 @@ lms = _LMS l
 
 -- LMSsim Protan
 lms_s :: LMS
-lms_s = _LMSsim l 1 1.0
+lms_s = _LMSsim lms 1 1.0
 
 
 main :: IO ()
@@ -39,5 +39,5 @@ main = do
     print lms_s
 
     putStrLn "\n=Cálculo LMSsim (Deuteranomalia, α = 0.8)="
-    print (_LMSsim l 2 0.8)
+    print (_LMSsim lms 2 0.8)
 
