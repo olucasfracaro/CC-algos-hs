@@ -1,6 +1,6 @@
 module LMSDaltonization where
 
-import Data.Matrix (Matrix, fromList, fromLists, mapPos)
+import Data.Matrix (Matrix, identity, fromList, fromLists, mapPos, scaleMatrix)
 
 -- Espaços de cor
 type SRGB = Matrix Double
@@ -8,8 +8,8 @@ type RGBl = Matrix Double
 type LMS = Matrix Double
 
 -- Construtor do sRGB (normalizado)
-_sRGB :: Double -> Double -> Double -> SRGB
-_sRGB r g b = norm_sRGB(fromList 3 1 [r, g, b])
+_sRGB :: [Integer] -> SRGB
+_sRGB rgb = norm_sRGB (fromList 3 1 (map fromIntegral rgb))
 
 -- Construtor do RGBl
 _RGBl :: SRGB -> RGBl
@@ -20,8 +20,8 @@ _LMS :: RGBl -> LMS
 _LMS l = transf_RGBl_LMS l
 
 -- Construtor do LMSsim
-_LMSsim :: LMS -> Integer -> LMS
-_LMSsim l t = calc_LMSsim l t
+_LMSsim :: LMS -> Int -> Float -> LMS
+_LMSsim l t i = calc_LMSsim l t i
 
 -- Normaliza sRGB para ∈ [0.0; 1.0]
 norm_sRGB :: SRGB -> SRGB
@@ -68,11 +68,28 @@ s_Tritan = fromLists [[    1,        0,     0],
                       [-0.395913, 0.801109, 0]]
 
 -- Cálculo da Simulação LMS por grupo (LMS_sim)
-calc_LMSsim :: LMS -> Integer -> LMS
-calc_LMSsim lms tipo
-    | tipo == 1 = s_Protan * lms
-    | tipo == 2 = s_Deutan * lms
-    | tipo == 3 = s_Tritan * lms
-    | otherwise = 0
+calc_LMSsim :: LMS -> Int -> Float -> LMS
+calc_LMSsim lms tipo intensidade = do
+    if tipo == 1 && intensidade == 1.0       then s_Protan * lms
+    else if tipo == 2 && intensidade == 1.0  then s_Deutan * lms
+    else if tipo == 3 && intensidade == 1.0  then s_Tritan * lms
+    else if (intensidade > 0.0 && intensidade < 1.0) then
+        (interpolacao_anom tipo intensidade) * lms
+    else 0
+
+-- Interpolação para Tricromacia Anômala
+interpolacao_anom :: Int -> Float -> LMS
+interpolacao_anom tipo alfa =
+    let a = realToFrac alfa
+        identidade = identity 3
+    in
+        if tipo == 1 then
+            scaleMatrix (1 - a) identidade + scaleMatrix a s_Protan
+        else if tipo == 2 then
+            scaleMatrix (1 - a) identidade + scaleMatrix a s_Deutan
+        else if tipo == 3 then
+            scaleMatrix (1 - a) identidade + scaleMatrix a s_Tritan
+        else
+            identidade
 
 
