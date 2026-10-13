@@ -20,12 +20,19 @@ _LMS :: RGBl -> LMS
 _LMS l = transf_RGBl_LMS l
 
 -- Construtor do LMSsim
-_LMSsim :: LMS -> Int -> Float -> LMS
+_LMSsim :: LMS -> Int -> Float -> Either ErroDaltonizacao LMS
 _LMSsim l t i = calc_LMSsim l t i
 
 -- Construtor do LMSerro
 _LMSerro :: LMS -> LMS -> LMS
 _LMSerro lms lms_sim = calc_LMSerro lms lms_sim
+
+
+-- Classe de erro
+data ErroDaltonizacao
+    = TipoDaltonismoInvalido Int
+    | IntensidadeInvalida Float
+    deriving (Show, Eq)
 
 
 
@@ -74,36 +81,36 @@ s_Tritan = fromLists [[    1,        0,     0],
                       [    0,        1,     0],
                       [-0.395913, 0.801109, 0]]
 
+s_Tipo :: [Matrix Double]
+s_Tipo = [s_Protan, s_Deutan, s_Tritan]
+
 -- Cálculo da Simulação LMS por grupo (LMS_sim)
-calc_LMSsim :: LMS -> Int -> Float -> LMS
-calc_LMSsim lms tipo intensidade = do
-    if tipo == 1 && intensidade == 1.0       then s_Protan * lms
-    else if tipo == 2 && intensidade == 1.0  then s_Deutan * lms
-    else if tipo == 3 && intensidade == 1.0  then s_Tritan * lms
-    else if (intensidade > 0.0 && intensidade < 1.0) then
-        (interpolacao_anom tipo intensidade) * lms
-    else 0
+calc_LMSsim :: LMS -> Int -> Float -> Either ErroDaltonizacao LMS
+calc_LMSsim lms tipo intensidade
+    | tipo < 1 || tipo > 3 =
+        Left (TipoDaltonismoInvalido tipo)
 
--- Interpolação para Tricromacia Anômala
-interpolacao_anom :: Int -> Float -> LMS
-interpolacao_anom tipo alfa =
-    let a = realToFrac alfa
-        identidade = identity 3
-    in
-        if tipo == 1 then
-            scaleMatrix (1 - a) identidade + scaleMatrix a s_Protan
-        else if tipo == 2 then
-            scaleMatrix (1 - a) identidade + scaleMatrix a s_Deutan
-        else if tipo == 3 then
-            scaleMatrix (1 - a) identidade + scaleMatrix a s_Tritan
-        else
-            identidade
+    | not (intensidade >= 0.0 && intensidade <= 1.0) =
+        Left (IntensidadeInvalida intensidade)
+
+    | intensidade == 1.0 =
+        Right ((s_Tipo !! (tipo - 1)) * lms)
+    
+    -- Interpolação para Tricromacia Anômala
+    | otherwise =
+        let a = realToFrac intensidade
+            identidade = identity 3
+            simulacao = s_Tipo !! (tipo - 1)
+            matriz = scaleMatrix (1 - a) identidade
+                   + scaleMatrix a simulacao
+        in Right (matriz * lms)
 
 
 
--- Cálculo do Erro Perceptivo (ΔLMS)
+-- Cálculo do Erro Perceptivo (ΔLMS) -> RGBl
 calc_LMSerro :: LMS -> LMS -> RGBl
-calc_LMSerro lms lms_sim = transf_LMS_RGBl lms - lms_sim
+calc_LMSerro lms lms_sim =
+    transf_LMS_RGBl lms - transf_LMS_RGBl lms_sim
 
 
 -- Matriz Hunt-Pointer-Estevez Inversa
@@ -118,7 +125,7 @@ transf_LMS_RGBl :: LMS -> RGBl
 transf_LMS_RGBl lms = mHPE_inv * lms
 
 
--- Matrizes E por grupo
+-- Matrizes E (Fidaner et al.)
 e_Protan :: Matrix Double
 e_Protan = fromLists  [ [ 0,  0, 0], -- Canal L
                         [0.7, 1, 0],
@@ -134,11 +141,15 @@ e_Tritan = fromLists  [ [ 1,  0, 0.7],
                         [ 0,  1, 0.7],
                         [ 0,  0,  0]] -- Canal S
 
--- Redistribuição do erro usando as Matrizes E
-redist_erro :: RGBl -> Int -> RGBl -- RGBcomp
-redist_erro erro tipo = do
-    if tipo == 1 then       e_Protan * erro
-    else if tipo == 2 then  e_Deutan * erro
-    else if tipo == 3 then  e_Tritan * erro
-    else 0
+e_Tipo :: [Matrix Double]
+e_Tipo = [e_Protan, e_Deutan, e_Tritan]
+
+-- Redistribuição do erro usando as matrizes E
+redist_erro :: RGBl -> Int -> Either ErroDaltonizacao RGBl -- RGBcomp
+redist_erro erro tipo
+    | tipo < 1 || tipo > 3 =
+        Left (TipoDaltonismoInvalido tipo)
+
+    | otherwise =
+        Right ((e_Tipo !! (tipo - 1)) * erro)
 
