@@ -23,6 +23,12 @@ _LMS l = transf_RGBl_LMS l
 _LMSsim :: LMS -> Int -> Float -> LMS
 _LMSsim l t i = calc_LMSsim l t i
 
+-- Construtor do LMSerro
+_LMSerro :: LMS -> LMS -> LMS
+_LMSerro lms lms_sim = calc_LMSerro lms lms_sim
+
+
+
 -- Normaliza sRGB para ∈ [0.0; 1.0]
 norm_sRGB :: SRGB -> SRGB
 norm_sRGB = mapPos (\_ x -> x / 255)
@@ -49,6 +55,7 @@ mHPE = fromLists  [ [17.8824, 43.5161, 4.11935],
 -- usando mLMS = mHPE
 transf_RGBl_LMS :: RGBl -> LMS
 transf_RGBl_LMS rgbl = mHPE * rgbl
+
 
 
 -- Matrizes de Simulação da Dicromacia (Brettel, Viénot, Mollon. 1997)
@@ -92,4 +99,46 @@ interpolacao_anom tipo alfa =
         else
             identidade
 
+
+
+-- Cálculo do Erro Perceptivo (ΔLMS)
+calc_LMSerro :: LMS -> LMS -> RGBl
+calc_LMSerro lms lms_sim = transf_LMS_RGBl lms - lms_sim
+
+
+-- Matriz Hunt-Pointer-Estevez Inversa
+mHPE_inv :: Matrix Double
+mHPE_inv = fromLists   [[0.08051, -0.13051, 0.11672],
+                        [-0.01024, 0.05402, -0.11361],
+                        [-0.00036, -0.00412, 0.69351]]
+
+-- Função de Transformação do espaço LMS para RGBlinear
+-- usando mLMS = mHPE⁻¹
+transf_LMS_RGBl :: LMS -> RGBl
+transf_LMS_RGBl lms = mHPE_inv * lms
+
+
+-- Matrizes E por grupo
+e_Protan :: Matrix Double
+e_Protan = fromLists  [ [ 0,  0, 0], -- Canal L
+                        [0.7, 1, 0],
+                        [0.7, 0, 1]]
+
+e_Deutan :: Matrix Double
+e_Deutan = fromLists  [ [ 1, 0.7, 0],
+                        [ 0,  0,  0], -- Canal M
+                        [ 0, 0.7, 1]]
+
+e_Tritan :: Matrix Double
+e_Tritan = fromLists  [ [ 1,  0, 0.7],
+                        [ 0,  1, 0.7],
+                        [ 0,  0,  0]] -- Canal S
+
+-- Redistribuição do erro usando as Matrizes E
+redist_erro :: RGBl -> Int -> RGBl -- RGBcomp
+redist_erro erro tipo = do
+    if tipo == 1 then       e_Protan * erro
+    else if tipo == 2 then  e_Deutan * erro
+    else if tipo == 3 then  e_Tritan * erro
+    else 0
 
