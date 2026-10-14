@@ -11,7 +11,7 @@ cabal-version:      3.0
 --   http://haskell.org/cabal/users-guide/
 --
 -- The name of the package.
-name:               haskell
+name:               ccalgos
 
 -- The package version.
 -- See the Haskell package versioning policy (PVP) for standards
@@ -57,7 +57,7 @@ extra-doc-files:    README.md
 common warnings
     ghc-options: -Wall
 
-executable haskell
+executable ccalgos
     -- Import common warning flags.
     import:           warnings
 
