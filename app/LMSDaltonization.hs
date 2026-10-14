@@ -24,7 +24,7 @@ _LMSsim :: LMS -> Int -> Float -> Either ErroDaltonizacao LMS
 _LMSsim l t i = calc_LMSsim l t i
 
 -- Construtor do LMSerro
-_LMSerro :: LMS -> LMS -> LMS
+_LMSerro :: LMS -> LMS -> RGBl
 _LMSerro lms lms_sim = calc_LMSerro lms lms_sim
 
 
@@ -40,15 +40,18 @@ data ErroDaltonizacao
 norm_sRGB :: SRGB -> SRGB
 norm_sRGB = mapPos (\_ x -> x / 255)
 
+
+
 -- Função de Transferência sRGB Inversa (IEC 61966-2-1:1999)
-cLinear :: Double -> Double
-cLinear c 
+cLinear_inv :: Double -> Double
+cLinear_inv c
     | c <= 0.04045 = c / 12.92
-    | otherwise = ((c + 0.055)/1.055) ** 2.4 -- > c > 0.04045
+    | otherwise = ((c + 0.055) / 1.055) ** 2.4 -- > c > 0.04045
+
 
 -- Aplica a FTsRGBI para a matriz inteira
 transf_sRGB_inv :: SRGB -> RGBl
-transf_sRGB_inv = mapPos (\_ c -> cLinear c)
+transf_sRGB_inv = mapPos (\_ c -> cLinear_inv c)
 
 
 
@@ -94,16 +97,17 @@ calc_LMSsim lms tipo intensidade
         Left (IntensidadeInvalida intensidade)
 
     | intensidade == 1.0 =
-        Right ((s_Tipo !! (tipo - 1)) * lms)
-    
+        Right (simulacao * lms)
+
     -- Interpolação para Tricromacia Anômala
     | otherwise =
         let a = realToFrac intensidade
             identidade = identity 3
-            simulacao = s_Tipo !! (tipo - 1)
             matriz = scaleMatrix (1 - a) identidade
                    + scaleMatrix a simulacao
         in Right (matriz * lms)
+    where
+        simulacao = s_Tipo !! (tipo - 1)
 
 
 
@@ -123,7 +127,6 @@ mHPE_inv = fromLists   [[0.08051, -0.13051, 0.11672],
 -- usando mLMS = mHPE⁻¹
 transf_LMS_RGBl :: LMS -> RGBl
 transf_LMS_RGBl lms = mHPE_inv * lms
-
 
 -- Matrizes E (Fidaner et al.)
 e_Protan :: Matrix Double
@@ -152,4 +155,29 @@ redist_erro erro tipo
 
     | otherwise =
         Right ((e_Tipo !! (tipo - 1)) * erro)
+
+
+
+-- Truncamento e Estabilização de intervalo
+truncar_rgbl :: RGBl -> RGBl
+truncar_rgbl = mapPos (\_ c -> min 1 (max 0 c))
+
+
+
+-- Função de Transferência sRGB (IEC 61966-2-1:1999)
+cLinear :: Double -> Double
+cLinear c
+    | c <= 0.0031308 = 12.92 * c
+    | otherwise = 1.055 * (c ** (1 / 2.4)) - 0.055 -- > c > 0.0031308
+
+
+-- Aplica a FTsRGB para a matriz inteira
+transf_RGBl_sRGB :: RGBl -> SRGB
+transf_RGBl_sRGB = mapPos (\_ c -> cLinear c)
+
+
+
+-- Converter para Inteiro (8 bits)
+int_sRGB :: SRGB -> Matrix Int
+int_sRGB = mapPos (\_ x -> round (min 1 (max 0 x) * 255))
 
