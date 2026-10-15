@@ -1,15 +1,44 @@
-module LMSDaltonization where
+module LMSDaltonization
+    ( SRGB
+    , RGBl
+    , LMS
+    , ErroDaltonizacao(..)
+    , _sRGB
+    , _RGBl
+    , _LMS
+    , _LMSsim
+    , _LMSerro
+    , redist_erro
+    , truncar_rgbl
+    , transf_RGBl_sRGB
+    , int_sRGB
+    ) where
+
 
 import Data.Matrix (Matrix, identity, fromList, fromLists, mapPos, scaleMatrix)
+import Data.List (find)
 
 -- Espaços de cor
-type SRGB = Matrix Double
-type RGBl = Matrix Double
-type LMS = Matrix Double
+newtype SRGB = SRGB (Matrix Double)
+    deriving (Show, Eq)
+newtype RGBl = RGBl (Matrix Double)
+    deriving (Show, Eq)
+newtype LMS = LMS (Matrix Double)
+    deriving (Show, Eq)
 
 -- Construtor do sRGB (normalizado)
-_sRGB :: [Integer] -> SRGB
-_sRGB rgb = norm_sRGB (fromList 3 1 (map fromIntegral rgb))
+_sRGB :: [Integer] -> Either ErroDaltonizacao SRGB
+_sRGB rgb
+    | length rgb /= 3 =
+        Left (QuantidadeCanaisInvalida (length rgb))
+
+    | Just c <- find (\c -> c < 0 || c > 255) rgb =
+        Left (CanalSRGBInvalido c)
+
+    | otherwise =
+        Right (norm_sRGB (SRGB (fromList 3 1 (map fromIntegral rgb))))
+
+
 
 -- Construtor do RGBl
 _RGBl :: SRGB -> RGBl
@@ -32,13 +61,15 @@ _LMSerro lms lms_sim = calc_LMSerro lms lms_sim
 data ErroDaltonizacao
     = TipoDaltonismoInvalido Int
     | IntensidadeInvalida Float
+    | QuantidadeCanaisInvalida Int
+    | CanalSRGBInvalido Integer
     deriving (Show, Eq)
 
 
 
 -- Normaliza sRGB para ∈ [0.0; 1.0]
 norm_sRGB :: SRGB -> SRGB
-norm_sRGB = mapPos (\_ x -> x / 255)
+norm_sRGB (SRGB s) = SRGB (mapPos (\_ x -> x / 255) s)
 
 
 
@@ -51,7 +82,7 @@ cLinear_inv c
 
 -- Aplica a FTsRGBI para a matriz inteira
 transf_sRGB_inv :: SRGB -> RGBl
-transf_sRGB_inv = mapPos (\_ c -> cLinear_inv c)
+transf_sRGB_inv (SRGB s) = RGBl (mapPos (\_ c -> cLinear_inv c) s)
 
 
 
@@ -64,7 +95,7 @@ mHPE = fromLists  [ [17.8824, 43.5161, 4.11935],
 -- Função de Transformação do RGBlinear para o espaço LMS (CIE 1931 XYZ)
 -- usando mLMS = mHPE
 transf_RGBl_LMS :: RGBl -> LMS
-transf_RGBl_LMS rgbl = mHPE * rgbl
+transf_RGBl_LMS (RGBl l) = LMS (mHPE * l)
 
 
 
@@ -89,32 +120,28 @@ s_Tipo = [s_Protan, s_Deutan, s_Tritan]
 
 -- Cálculo da Simulação LMS por grupo (LMS_sim)
 calc_LMSsim :: LMS -> Int -> Float -> Either ErroDaltonizacao LMS
-calc_LMSsim lms tipo intensidade
+calc_LMSsim (LMS lms) tipo intensidade
     | tipo < 1 || tipo > 3 =
         Left (TipoDaltonismoInvalido tipo)
 
     | not (intensidade >= 0.0 && intensidade <= 1.0) =
         Left (IntensidadeInvalida intensidade)
 
-    | intensidade == 1.0 =
-        Right (simulacao * lms)
-
-    -- Interpolação para Tricromacia Anômala
     | otherwise =
         let a = realToFrac intensidade
             identidade = identity 3
+            simulacao = s_Tipo !! (tipo - 1)
             matriz = scaleMatrix (1 - a) identidade
                    + scaleMatrix a simulacao
-        in Right (matriz * lms)
-    where
-        simulacao = s_Tipo !! (tipo - 1)
-
+        in Right (LMS (matriz * lms))
 
 
 -- Cálculo do Erro Perceptivo (ΔLMS) -> RGBl
 calc_LMSerro :: LMS -> LMS -> RGBl
 calc_LMSerro lms lms_sim =
-    transf_LMS_RGBl lms - transf_LMS_RGBl lms_sim
+    let RGBl original = transf_LMS_RGBl lms
+        RGBl simulado = transf_LMS_RGBl lms_sim
+    in RGBl (original - simulado)
 
 
 -- Matriz Hunt-Pointer-Estevez Inversa
@@ -126,7 +153,8 @@ mHPE_inv = fromLists   [[0.08051, -0.13051, 0.11672],
 -- Função de Transformação do espaço LMS para RGBlinear
 -- usando mLMS = mHPE⁻¹
 transf_LMS_RGBl :: LMS -> RGBl
-transf_LMS_RGBl lms = mHPE_inv * lms
+transf_LMS_RGBl (LMS lms) =
+    RGBl (mHPE_inv * lms)
 
 -- Matrizes E (Fidaner et al.)
 e_Protan :: Matrix Double
@@ -149,18 +177,18 @@ e_Tipo = [e_Protan, e_Deutan, e_Tritan]
 
 -- Redistribuição do erro usando as matrizes E
 redist_erro :: RGBl -> Int -> Either ErroDaltonizacao RGBl -- RGBcomp
-redist_erro erro tipo
+redist_erro (RGBl erro) tipo
     | tipo < 1 || tipo > 3 =
         Left (TipoDaltonismoInvalido tipo)
 
     | otherwise =
-        Right ((e_Tipo !! (tipo - 1)) * erro)
+        Right (RGBl ((e_Tipo !! (tipo - 1)) * erro))
 
 
 
 -- Truncamento e Estabilização de intervalo
 truncar_rgbl :: RGBl -> RGBl
-truncar_rgbl = mapPos (\_ c -> min 1 (max 0 c))
+truncar_rgbl (RGBl l) = RGBl (mapPos (\_ c -> min 1 (max 0 c)) l)
 
 
 
@@ -173,11 +201,11 @@ cLinear c
 
 -- Aplica a FTsRGB para a matriz inteira
 transf_RGBl_sRGB :: RGBl -> SRGB
-transf_RGBl_sRGB = mapPos (\_ c -> cLinear c)
+transf_RGBl_sRGB (RGBl l) = SRGB (mapPos (\_ c -> cLinear c) l)
 
 
 
 -- Converter para Inteiro (8 bits)
 int_sRGB :: SRGB -> Matrix Int
-int_sRGB = mapPos (\_ x -> round (min 1 (max 0 x) * 255))
+int_sRGB (SRGB s) = (mapPos (\_ x -> round (min 1 (max 0 x) * 255)) s)
 
