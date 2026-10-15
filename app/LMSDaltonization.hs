@@ -15,7 +15,7 @@ module LMSDaltonization
     ) where
 
 
-import Data.Matrix (Matrix, identity, fromList, fromLists, mapPos, scaleMatrix)
+import Data.Matrix (Matrix, identity, fromList, fromLists, mapPos, scaleMatrix, elementwise)
 import Data.List (find)
 
 -- Espaços de cor
@@ -23,6 +23,28 @@ newtype SRGB = SRGB (Matrix Double)
     deriving (Show, Eq)
 newtype RGBl = RGBl (Matrix Double)
     deriving (Show, Eq)
+
+instance Num RGBl where
+    RGBl a + RGBl b = RGBl (a + b)
+
+    RGBl a - RGBl b = RGBl (a - b)
+
+    RGBl a * RGBl b =
+        RGBl (elementwise (*) a b)
+
+    negate (RGBl a) =
+        RGBl (mapPos (\_ x -> negate x) a)
+
+    abs (RGBl a) =
+        RGBl (mapPos (\_ x -> abs x) a)
+
+    signum (RGBl a) =
+        RGBl (mapPos (\_ x -> signum x) a)
+
+    fromInteger n =
+        RGBl (scaleMatrix (fromInteger n) (identity 3))
+
+
 newtype LMS = LMS (Matrix Double)
     deriving (Show, Eq)
 
